@@ -11,10 +11,18 @@ resource "cloudflare_zone" "kd3bwz_net" {
     type = "full"
 }
 
+resource "cloudflare_zone" "mckinnie_org" {
+    account = {
+        id = local.cloudflare_account_id
+    }
+    name = "mckinnie.org"
+    type = "full"
+}
+
 resource "cloudflare_dns_record" "kd3bwz_net_root" {
     name = "kd3bwz.net"
     type = "A"
-    content = "152.42.153.153"
+    content = var.kd3bwz_root_ip
     zone_id = cloudflare_zone.kd3bwz_net.id
     ttl = 1
     proxied = true
