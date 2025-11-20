@@ -1,6 +1,6 @@
 resource "aws_key_pair" "jmckinnie_key" {
   key_name   = "jmckinnie-key"
-  public_key = file("${path.module}/jmckinnie.pub")
+  public_key = file("~/.ssh/id_ed25519.pub")
 
   tags = {
     Name = "jmckinnie-key"
@@ -273,7 +273,9 @@ resource "aws_instance" "bastion" {
     encrypted   = true
   }
 
-  metadata_options { http_tokens = "required" }
+  metadata_options {
+    http_tokens = "required"
+  }
 
   tags = {
     Name = "k8s-bastion"
@@ -287,6 +289,7 @@ resource "aws_instance" "control_plane" {
   subnet_id              = aws_subnet.private.id
   vpc_security_group_ids = [aws_security_group.control_plane.id]
   iam_instance_profile   = aws_iam_instance_profile.control_plane.name
+  user_data              = file("${path.module}/cloudinit.sh")
 
   root_block_device {
     encrypted   = true
@@ -294,7 +297,9 @@ resource "aws_instance" "control_plane" {
     volume_type = "gp3"
   }
 
-  metadata_options { http_tokens = "required" }
+  metadata_options {
+    http_tokens = "required"
+  }
 
   tags = {
     Name = "k8s-control-plane"
@@ -310,6 +315,7 @@ resource "aws_instance" "worker" {
   subnet_id              = aws_subnet.private.id
   vpc_security_group_ids = [aws_security_group.worker.id]
   iam_instance_profile   = aws_iam_instance_profile.worker.name
+  user_data              = file("${path.module}/cloudinit.sh")
 
   root_block_device {
     volume_size = 20
@@ -317,7 +323,9 @@ resource "aws_instance" "worker" {
     encrypted   = true
   }
 
-  metadata_options { http_tokens = "required" }
+  metadata_options {
+    http_tokens = "required"
+  }
 
   tags = {
     Name = "worker-${count.index}"
