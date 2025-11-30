@@ -19,6 +19,14 @@ resource "cloudflare_zone" "mckinnie_org" {
   type = "full"
 }
 
+resource "cloudflare_dns_record" "bastion_kd3bwz_net" {
+  name = "bastion.kd3bwz.net"
+  type = "A"
+  content = data.terraform_remote_state.aws.outputs.bastion_public_ip
+  zone_id = cloudflare_zone.kd3bwz_net.id
+  ttl = 1
+}
+
 resource "cloudflare_dns_record" "kd3bwz_net_root" {
   name    = "kd3bwz.net"
   type    = "A"
@@ -51,4 +59,13 @@ resource "cloudflare_dns_record" "kd3bwz_net_spf" {
   ttl     = 1
   zone_id = cloudflare_zone.kd3bwz_net.id
 
+}
+
+data "terraform_remote_state" "aws" {
+  backend = "s3"
+  config = {
+    bucket = "jmckinnie-cloud-infra"
+    key = "k8s/terraform.tfstate"
+    region = "us-east-1"
+  }
 }
