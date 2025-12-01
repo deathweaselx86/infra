@@ -47,3 +47,4 @@ systemctl restart containerd
 
 # install k8s components
 apt-get install -y kubeadm=$K8S_VERSION kubelet=$K8S_VERSION kubectl=$K8S_VERSION
+apt-mark hold kubeadm kubelet kubectl

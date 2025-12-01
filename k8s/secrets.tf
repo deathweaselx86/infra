@@ -6,6 +6,10 @@ data "http" "ip" {
   url = "https://checkip.amazonaws.com"
 }
 
+data "local_file" "cloudinit" {
+  filename = "${path.module}/cloudinit.sh"
+}
+
 locals {
   aws_access_key_id     = data.sops_file.secrets.data["aws_access_key_id"]
   aws_secret_access_key = data.sops_file.secrets.data["aws_secret_access_key"]
