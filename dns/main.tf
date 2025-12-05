@@ -1,7 +1,3 @@
-data "cloudflare_registrar_domain" "kd3bwz_net" {
-  account_id  = local.cloudflare_account_id
-  domain_name = "kd3bwz.net"
-}
 
 resource "cloudflare_zone" "kd3bwz_net" {
   account = {
@@ -20,11 +16,11 @@ resource "cloudflare_zone" "mckinnie_org" {
 }
 
 resource "cloudflare_dns_record" "bastion_kd3bwz_net" {
-  name = "bastion.kd3bwz.net"
-  type = "A"
+  name    = "bastion.kd3bwz.net"
+  type    = "A"
   content = data.terraform_remote_state.aws.outputs.bastion_public_ip
   zone_id = cloudflare_zone.kd3bwz_net.id
-  ttl = 1
+  ttl     = 1
 }
 
 resource "cloudflare_dns_record" "kd3bwz_net_root" {
@@ -65,7 +61,7 @@ data "terraform_remote_state" "aws" {
   backend = "s3"
   config = {
     bucket = "jmckinnie-cloud-infra"
-    key = "k8s/terraform.tfstate"
+    key    = "k8s/terraform.tfstate"
     region = "us-east-1"
   }
 }

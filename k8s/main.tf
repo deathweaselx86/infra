@@ -213,6 +213,10 @@ resource "aws_security_group" "control_plane" {
   tags = {
     Name = "k8s-control-plane-sg"
   }
+
+  lifecycle {
+    ignore_changes = [ingress, egress]
+  }
 }
 
 resource "aws_security_group" "worker" {

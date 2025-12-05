@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/http"
       version = "~> 3.5.0"
     }
+    local = {
+      source = "hashicorp/local"
+      version = "~> 2.6.1"
+    }
     sops = {
       source  = "carlpett/sops"
       version = "~> 1.0"
