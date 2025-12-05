@@ -202,7 +202,7 @@ resource "aws_security_group" "control_plane" {
     self        = true
   }
 
-    egress {
+  egress {
     description = "Allow all outbound"
     from_port   = 0
     to_port     = 0
@@ -301,13 +301,13 @@ resource "aws_security_group" "worker" {
 
 # had to split out these sg rules to avoid a cycle
 resource "aws_security_group_rule" "vxlan_workers_to_cp" {
-  type              = "ingress"
-  from_port         = 4789
-  to_port           = 4789
-  protocol          = "udp"
-  security_group_id = aws_security_group.control_plane.id
+  type                     = "ingress"
+  from_port                = 4789
+  to_port                  = 4789
+  protocol                 = "udp"
+  security_group_id        = aws_security_group.control_plane.id
   source_security_group_id = aws_security_group.worker.id
-  description       = "VXLAN from workers to control plane"
+  description              = "VXLAN from workers to control plane"
 }
 
 resource "aws_security_group_rule" "cilium_health_workers_to_cp" {
@@ -321,13 +321,13 @@ resource "aws_security_group_rule" "cilium_health_workers_to_cp" {
 }
 
 resource "aws_security_group_rule" "workers_to_cp_all" {
-  type              = "ingress"
-  from_port         = 0
-  to_port           = 0
-  protocol          = "-1"
-  security_group_id = aws_security_group.control_plane.id
+  type                     = "ingress"
+  from_port                = 0
+  to_port                  = 0
+  protocol                 = "-1"
+  security_group_id        = aws_security_group.control_plane.id
   source_security_group_id = aws_security_group.worker.id
-  description       = "All from workers to control plane"
+  description              = "All from workers to control plane"
 }
 
 resource "aws_instance" "bastion" {
@@ -386,7 +386,7 @@ resource "aws_instance" "worker" {
   vpc_security_group_ids = [aws_security_group.worker.id]
   iam_instance_profile   = aws_iam_instance_profile.worker.name
   user_data              = data.local_file.cloudinit.content
- 
+
   root_block_device {
     volume_size = 20
     volume_type = "gp3"
