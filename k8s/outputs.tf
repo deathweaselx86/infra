@@ -23,4 +23,7 @@ output "worker_private_ips" {
   value       = aws_instance.worker[*].private_ip
 }
 
-
+output "burstable_worker_private_ips" {
+  description = "Private IP addresses of burstable worker nodes"
+  value       = aws_instance.burstable_worker[*].private_ip
+}

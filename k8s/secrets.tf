@@ -16,4 +16,5 @@ locals {
   availability_zone     = "us-east-1a"
   src_ip                = "${chomp(data.http.ip.response_body)}/32"
   ami                   = "ami-083f1fc4f8bcff379"
+  burstable_ami         = "ami-0c1f44f890950b53c"
 }
