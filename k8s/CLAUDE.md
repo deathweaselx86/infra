@@ -8,6 +8,7 @@ This repository contains Terraform infrastructure code for provisioning a Kubern
 - 1 bastion host in a public subnet (for secure access)
 - 1 control plane node in a private subnet
 - 3 worker nodes in a private subnet
+- 1 burstable worker node in a private subnet
 - VPC with separate public/private subnets and NAT gateway
 
 ## Terraform Commands
@@ -76,12 +77,13 @@ The infrastructure uses three security groups with specific port allowances:
 - **Bastion**: c6gd.medium, 10GB GP3 encrypted root volume
 - **Control Plane**: c6gd.large, 30GB GP3 encrypted root volume
 - **Workers**: c6gd.large (count=3), 20GB GP3 encrypted root volumes
+- **Burstable Worker**: t3.large, 20GB GP3 encrypted root volume
 - All instances use ARM-based AMI (ami-083f1fc4f8bcff379)
 - All instances require IMDSv2 (http_tokens = "required")
 - SSH key from ~/.ssh/id_ed25519.pub
 
 ### Cloud-Init Script
-The `cloudinit.sh` script (main.tf:292, main.tf:318) runs on control plane and worker nodes to:
+The `cloudinit.sh` script runs on control plane and worker nodes to:
 1. Install containerd with systemd cgroup driver
 2. Configure kernel modules (overlay, br_netfilter) and sysctl for Kubernetes networking
 3. Add Docker and Kubernetes v1.34 apt repositories
@@ -100,17 +102,20 @@ Secrets are managed using SOPS (secrets.enc.yaml in parent directory):
 
 ## File Structure
 
-- **main.tf**: Primary infrastructure definitions (VPC, subnets, instances, security groups, IAM)
+- **main.tf**: EC2 instances and SSH key pair
+- **networking.tf**: VPC, subnets, route tables, NAT/Internet gateways
+- **security.tf**: Security groups with Kubernetes-specific port rules
+- **iam.tf**: IAM roles and instance profiles for control plane and workers
+- **secrets.tf**: SOPS data source and locals (AMI IDs, availability zone, source IP)
 - **providers.tf**: AWS provider configuration with credentials from SOPS
 - **backend.tf**: S3 backend configuration for state storage
 - **versions.tf**: Terraform version constraints and required providers
-- **secrets.tf**: SOPS data source and locals for credentials/config
 - **outputs.tf**: Bastion and NAT gateway public IPs
 - **cloudinit.sh**: User data script for instance initialization
 
 ## Important Notes
 
-- The control plane IAM policy has overly broad ec2:* and elasticloadbalancing:* permissions (main.tf:382) - this should be narrowed down
+- The control plane IAM policy has overly broad ec2:* and elasticloadbalancing:* permissions (in iam.tf) - this should be narrowed down
 - The cloudinit.sh script is incomplete and doesn't fully initialize Kubernetes - manual kubeadm init/join steps are required
 - All security group rules reference specific ports based on Kubernetes documentation
 - The bastion is the only public-facing resource; all K8s nodes are in private subnet

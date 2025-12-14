@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This repository contains Terraform infrastructure for managing cloud resources across AWS and Cloudflare. The infrastructure is organized into three independent modules:
 
 - **bootstrap/**: One-time setup that creates the S3 backend and DynamoDB table for Terraform state management
-- **k8s/**: AWS Kubernetes cluster infrastructure (1 bastion, 1 control plane, 3 workers)
+- **k8s/**: AWS Kubernetes cluster infrastructure (1 bastion, 1 control plane, 3 c6gd.large workers, 1 t3.large burstable worker)
 - **dns/**: Cloudflare DNS management for kd3bwz.net and mckinnie.org domains
 
 Each module has its own Terraform state stored in the shared S3 backend (except bootstrap, which uses local state).
@@ -46,6 +46,9 @@ terraform apply     # Apply changes
 terraform destroy   # Destroy infrastructure
 terraform show      # Show current state
 terraform state list  # List resources in state
+
+# Linting (run from repository root)
+make tflint         # Run tflint with --recursive --fix on all modules
 ```
 
 ### Bootstrap Module
@@ -58,7 +61,18 @@ This module uses local state (`terraform.tfstate` in the bootstrap directory).
 
 ### K8s Module
 
-Provisions a Kubernetes cluster on AWS for CKA exam practice. See `k8s/CLAUDE.md` for detailed architecture documentation.
+Provisions a Kubernetes cluster on AWS for CKA exam practice:
+- 1 bastion host (c6gd.medium) in public subnet
+- 1 control plane (c6gd.large) in private subnet
+- 3 workers (c6gd.large) in private subnet
+- 1 burstable worker (t3.large) in private subnet
+
+Code is organized into separate files:
+- `main.tf` - EC2 instances and SSH key pair
+- `networking.tf` - VPC, subnets, route tables, NAT/Internet gateways
+- `security.tf` - Security groups with Kubernetes-specific port rules
+- `iam.tf` - IAM roles and instance profiles for control plane and workers
+- `secrets.tf` - SOPS data source and locals (AMI IDs, availability zone, source IP)
 
 Key outputs:
 ```bash
@@ -105,29 +119,49 @@ data "terraform_remote_state" "aws" {
 
 This allows DNS records to automatically use the bastion host's public IP.
 
+## Code Quality Tools
+
+Pre-commit hooks are configured to run:
+- `terraform fmt` - Format Terraform files
+- `terraform_docs` - Generate documentation
+- `terraform_tflint` - Lint Terraform code
+
+Install hooks with: `pre-commit install`
+
+TFLint configuration (`.tflint.hcl`) includes:
+- AWS ruleset (v0.44.0)
+- Terraform recommended preset
+
 ## Key Files Structure
 
 ```
 .
-├── secrets.yaml           # Unencrypted secrets (gitignored)
-├── secrets.enc.yaml       # Encrypted secrets (committed)
-├── Makefile              # Helper commands for SOPS encryption
+├── secrets.yaml              # Unencrypted secrets (gitignored)
+├── secrets.enc.yaml          # Encrypted secrets (committed)
+├── Makefile                  # Helper commands (SOPS encryption, tflint)
+├── .pre-commit-config.yaml   # Pre-commit hook configuration
+├── .tflint.hcl              # TFLint configuration
 ├── bootstrap/
-│   ├── main.tf           # S3 bucket and DynamoDB table definitions
+│   ├── main.tf              # S3 bucket and DynamoDB table definitions
 │   └── README.md
 ├── k8s/
-│   ├── main.tf           # VPC, instances, security groups, IAM
-│   ├── cloudinit.sh      # Instance initialization script
-│   ├── providers.tf      # AWS provider with SOPS credentials
-│   ├── backend.tf        # S3 backend configuration
-│   ├── secrets.tf        # SOPS data source
-│   ├── outputs.tf        # Bastion and NAT gateway IPs
-│   └── CLAUDE.md         # Detailed k8s architecture docs
+│   ├── main.tf              # EC2 instances and key pair
+│   ├── networking.tf        # VPC, subnets, route tables, NAT/IGW
+│   ├── security.tf          # Security groups
+│   ├── iam.tf               # IAM roles and instance profiles
+│   ├── cloudinit.sh         # Instance initialization script
+│   ├── providers.tf         # AWS provider with SOPS credentials
+│   ├── backend.tf           # S3 backend configuration
+│   ├── secrets.tf           # SOPS data source and locals
+│   ├── versions.tf          # Provider version constraints
+│   ├── outputs.tf           # Bastion and NAT gateway IPs
+│   └── README.md            # Brief overview
 └── dns/
-    ├── main.tf           # Cloudflare zones and DNS records
-    ├── providers.tf      # Cloudflare provider
-    ├── backend.tf        # S3 backend configuration
-    └── secrets.tf        # SOPS data source
+    ├── main.tf              # Cloudflare zones and DNS records
+    ├── providers.tf         # Cloudflare provider
+    ├── backend.tf           # S3 backend configuration
+    ├── secrets.tf           # SOPS data source
+    └── versions.tf          # Provider version constraints
 ```
 
 ## Common Workflows
