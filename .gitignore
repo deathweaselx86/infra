@@ -44,3 +44,7 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+
+# Ignore generated inventory.yml file
+inventory.yml

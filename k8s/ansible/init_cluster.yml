@@ -1,0 +1,179 @@
+---
+- name: Initialize Kubernetes Cluster
+  hosts: all
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Wait for cloud-init to complete
+      command: cloud-init status --wait
+      changed_when: false
+
+    - name: Verify required packages are installed
+      command: which {{ item }}
+      loop:
+        - kubeadm
+        - kubelet
+        - kubectl
+      changed_when: false
+
+- name: Initialize Kubernetes Control Plane
+  hosts: control_plane
+  become: yes
+  tasks:
+    - name: Check if cluster is already initialized
+      stat:
+        path: /etc/kubernetes/admin.conf
+      register: k8s_admin_conf
+
+    - name: Initialize kubeadm on control plane
+      command: >
+        kubeadm init
+        --pod-network-cidr=10.0.0.0/8
+        --apiserver-advertise-address={{ ansible_default_ipv4.address }}
+        --skip-phases=addon/kube-proxy
+      when: not k8s_admin_conf.stat.exists
+      register: kubeadm_init
+
+    - name: Create jmckinnie user
+      user:
+        name: jmckinnie
+        shell: /bin/bash
+        create_home: yes
+        groups: sudo
+        append: yes
+
+    - name: Allow jmckinnie to use sudo without password
+      lineinfile:
+        path: /etc/sudoers.d/jmckinnie
+        line: 'jmckinnie ALL=(ALL) NOPASSWD:ALL'
+        create: yes
+        mode: '0440'
+        validate: 'visudo -cf %s'
+
+    - name: Create .ssh directory for jmckinnie
+      file:
+        path: /home/jmckinnie/.ssh
+        state: directory
+        owner: jmckinnie
+        group: jmckinnie
+        mode: '0700'
+
+    - name: Copy SSH authorized_keys from ubuntu to jmckinnie
+      copy:
+        src: /home/ubuntu/.ssh/authorized_keys
+        dest: /home/jmckinnie/.ssh/authorized_keys
+        remote_src: yes
+        owner: jmckinnie
+        group: jmckinnie
+        mode: '0600'
+
+    - name: Create .kube directory for jmckinnie user
+      file:
+        path: /home/jmckinnie/.kube
+        state: directory
+        owner: jmckinnie
+        group: jmckinnie
+        mode: '0755'
+
+    - name: Copy admin.conf to jmckinnie user's kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/jmckinnie/.kube/config
+        remote_src: yes
+        owner: jmckinnie
+        group: jmckinnie
+        mode: '0600'
+
+    - name: Check if Cilium CLI is installed
+      stat:
+        path: /usr/local/bin/cilium
+      register: cilium_cli
+
+    - name: Install Cilium CLI
+      shell: |
+        CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
+        CLI_ARCH=arm64
+        if [ "$(uname -m)" = "x86_64" ]; then CLI_ARCH=amd64; fi
+        curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+        sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
+        tar xzvfC cilium-linux-${CLI_ARCH}.tar.gz /usr/local/bin
+        rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+      when: not cilium_cli.stat.exists
+
+    - name: Check if Cilium is already installed
+      become: yes
+      become_user: jmckinnie
+      command: kubectl get namespace cilium-system
+      register: cilium_namespace
+      failed_when: false
+      changed_when: false
+
+    - name: Install Cilium CNI plugin
+      become: yes
+      become_user: jmckinnie
+      command: cilium install --version 1.18.5
+      when: cilium_namespace.rc != 0
+
+    - name: Wait for Cilium to be ready
+      become: yes
+      become_user: jmckinnie
+      command: cilium status --wait
+      timeout: 300
+
+    - name: Wait for all control plane pods to be ready
+      become: yes
+      become_user: jmckinnie
+      command: kubectl wait --for=condition=Ready pods --all -n kube-system --timeout=300s
+      retries: 3
+      delay: 10
+      register: result
+      until: result.rc == 0
+
+    - name: Generate join command
+      command: kubeadm token create --print-join-command
+      register: join_command_output
+
+    - name: Save join command to local fact
+      set_fact:
+        join_command: "{{ join_command_output.stdout }}"
+
+- name: Join Worker Nodes to Cluster
+  hosts: workers
+  become: yes
+  tasks:
+    - name: Check if node is already in cluster
+      stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: kubelet_conf
+
+    - name: Join worker nodes to cluster
+      command: "{{ hostvars[groups['control_plane'][0]]['join_command'] }}"
+      when: not kubelet_conf.stat.exists
+
+- name: Verify Cluster Status
+  hosts: control_plane
+  become: yes
+  become_user: jmckinnie
+  tasks:
+    - name: Wait for all nodes to be ready
+      command: kubectl wait --for=condition=Ready nodes --all --timeout=300s
+      retries: 3
+      delay: 10
+      register: result
+      until: result.rc == 0
+
+    - name: Display cluster nodes
+      command: kubectl get nodes -o wide
+      register: nodes_output
+
+    - name: Show cluster nodes
+      debug:
+        var: nodes_output.stdout_lines
+
+    - name: Display cluster pods
+      command: kubectl get pods -A
+      register: pods_output
+
+    - name: Show all pods
+      debug:
+        var: pods_output.stdout_lines

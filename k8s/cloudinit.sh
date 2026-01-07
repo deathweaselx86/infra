@@ -8,8 +8,14 @@ apt-get update && apt-get upgrade -y
 apt install apt-transport-https tree bash-completion software-properties-common ca-certificates socat -y
 
 # configure networking for k8s
-modprobe overlay 
+# Load kernel modules immediately
+modprobe overlay
 modprobe br_netfilter
+
+cat > /etc/modules-load.d/k8s.conf << EOF
+overlay
+br_netfilter
+EOF
 
 cat > /etc/sysctl.d/kubernetes.conf << BLOCK
 net.bridge.bridge-nf-call-ip6tables = 1
